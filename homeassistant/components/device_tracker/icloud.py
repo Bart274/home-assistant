@@ -268,7 +268,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             fields=[{'id': '0'}]
         )
 
-    def icloud_verification_code_callback(self, callback_data):
+    def icloud_verification_callback(self, callback_data):
         """The trusted device is chosen."""
         self._verification_code = callback_data.get('0')
         if self.accountname in _CONFIGURING:
@@ -287,7 +287,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         _CONFIGURING[self.accountname] = configurator.request_config(
             self.hass, 'iCloud {}'.format(self.accountname),
-            self.icloud_verification_code_callback,
+            self.icloud_verification_callback,
             description=('Please enter the validation code:'),
             description_image="/static/images/config_icloud.png",
             submit_caption='Confirm',
@@ -352,8 +352,10 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         currentzone = active_zone(self.hass, latitude, longitude)
 
-        if (currentzone is not None and
-                currentzone == self._overridestates.get(devicename)):
+        if ((currentzone is not None and
+             currentzone == self._overridestates.get(devicename)) or
+             (currentzone is None and
+              self._overridestates.get(devicename) == 'away')):
             return
 
         self._overridestates[devicename] = None
@@ -484,8 +486,11 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
                 if interval is not None:
                     if devicestate is not None:
                         self._overridestates[devname] = active_zone(
-                            self.hass, devicestate.attributes.get('latitude'),
-                            devicestate.attributes.get('longitude'))
+                            self.hass,
+                            float(devicestate.attributes.get('latitude', 0)),
+                            float(devicestate.attributes.get('longitude', 0)))
+                        if self._overridestates[devname] is None:
+                            self._overridestates[devname] = 'away'
                     self._intervals[devname] = interval
                 else:
                     self._overridestates[devname] = None
