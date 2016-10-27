@@ -354,7 +354,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         if ((currentzone is not None and
              currentzone == self._overridestates.get(devicename)) or
-             (currentzone is None and
+            (currentzone is None and
               self._overridestates.get(devicename) == 'away')):
             return
 
