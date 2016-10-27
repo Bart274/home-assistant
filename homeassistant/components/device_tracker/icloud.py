@@ -6,17 +6,14 @@ https://home-assistant.io/components/device_tracker/icloud/
 """
 import logging
 import random
-import re
 
 import voluptuous as vol
 
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD
-from homeassistant.helpers.entity import (Entity, generate_entity_id)
 from homeassistant.components.device_tracker import (
     PLATFORM_SCHEMA, DOMAIN, ATTR_ATTRIBUTES)
 from homeassistant.components.zone import active_zone
-from homeassistant.helpers.event import (track_state_change,
-                                         track_utc_time_change)
+from homeassistant.helpers.event import track_utc_time_change
 import homeassistant.helpers.config_validation as cv
 from homeassistant.util import slugify
 import homeassistant.util.dt as dt_util
@@ -83,7 +80,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 def setup_scanner(hass, config: dict, see):
     """Set up the iCloud Scanner."""
     # pylint: disable=too-many-locals
-    _LOGGER.info("ICLOUDTRACKER: setting up %s", config)
     # Get the username and password from the configuration
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
@@ -103,7 +99,6 @@ def setup_scanner(hass, config: dict, see):
     icloudaccount = Icloud(hass, username, password, cookiedirectory,
                            account, ignored_devices, googletraveltime, see)
     ICLOUDTRACKERS[account] = icloudaccount
-    _LOGGER.info("ICLOUDTRACKER: %s", ICLOUDTRACKERS)
 
     if not ICLOUDTRACKERS:
         _LOGGER.error("No ICLOUDTRACKERS added")
@@ -251,8 +246,6 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             request_id = _CONFIGURING.pop(self.accountname)
             configurator = get_component('configurator')
             configurator.request_done(request_id)
-            _LOGGER.info('iCloud: Trusted device chosen for %s',
-                         self.accountname)
 
     def icloud_need_trusted_device(self):
         """We need a trusted device."""
@@ -276,15 +269,13 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             fields=[{'id': '0'}]
         )
 
-    def icloud_verification_code_callback(self, callback_data):
+    def icloud_verification_callback(self, callback_data):
         """The trusted device is chosen."""
         self._verification_code = callback_data.get('0')
         if self.accountname in _CONFIGURING:
             request_id = _CONFIGURING.pop(self.accountname)
             configurator = get_component('configurator')
             configurator.request_done(request_id)
-            _LOGGER.info('iCloud: Verification code entered for %s',
-                         self.accountname)
 
     def icloud_need_verification_code(self):
         """We need a verification code."""
@@ -293,13 +284,11 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             return
 
         if self.api.send_verification_code(self._trusted_device):
-            _LOGGER.info('Verification code sent to device %s',
-                         self._trusted_device.get('deviceName'))
             self._verification_code = 'waiting'
 
         _CONFIGURING[self.accountname] = configurator.request_config(
             self.hass, 'iCloud {}'.format(self.accountname),
-            self.icloud_verification_code_callback,
+            self.icloud_verification_callback,
             description=('Please enter the validation code:'),
             description_image="/static/images/config_icloud.png",
             submit_caption='Confirm',
@@ -343,15 +332,12 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             else:
                 self.api.authenticate()
 
-            _LOGGER.info('ICT: account %s, devices %s', self.accountname, self.devices)
             for devicename in self.devices:
-                _LOGGER.info('ICT: account %s, try to update devices %s', self.accountname, devicename)
                 self.update_device(devicename)
 
     def determine_interval(self, devicename, latitude, longitude, battery):
         """Calculate new interval."""
         # pylint: disable=too-many-branches
-        _LOGGER.info('ICT: account %s, device %s, determining interval', self.accountname, devicename)
         distancefromhome = None
         zone_state = self.hass.states.get('zone.home')
         zone_state_lat = zone_state.attributes['latitude']
@@ -362,23 +348,17 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         currentzone = active_zone(self.hass, latitude, longitude)
 
-        _LOGGER.info('ICT: account %s, device %s, interval: currentzone %s', self.accountname, devicename, currentzone)
-
         if (currentzone is not None and
                 currentzone == self._overridestates.get(devicename)):
-            _LOGGER.info('ICT: account %s, device %s, interval: device zit in overridestate %s', self.accountname, devicename, self._overridestates.get(devicename))
             return
 
         self._overridestates[devicename] = None
 
         if currentzone is not None:
-            _LOGGER.info('ICT: account %s, device %s, interval: device in a known zone, original interval %s', self.accountname, devicename, self._intervals[devicename])
             self._intervals[devicename] = 30
-            _LOGGER.info('ICT: account %s, device %s, interval: device in a known zone, new interval %s', self.accountname, devicename, self._intervals[devicename])
         else:
             if distancefromhome is None:
                 return
-            _LOGGER.info('ICT: account %s, device %s, interval: distancefromhome %s', self.accountname, devicename, distancefromhome)
             if distancefromhome > 100:
                 self._intervals[devicename] = round(distancefromhome, 0)
                 gtt = self.googletraveltime.get(devicename)
