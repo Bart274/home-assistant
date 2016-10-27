@@ -80,7 +80,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 def setup_scanner(hass, config: dict, see):
     """Set up the iCloud Scanner."""
     # pylint: disable=too-many-locals
-    # Get the username and password from the configuration
     username = config.get(CONF_USERNAME)
     password = config.get(CONF_PASSWORD)
     account = config.get(CONF_ACCOUNTNAME, slugify(username))
@@ -269,7 +268,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             fields=[{'id': '0'}]
         )
 
-    def icloud_verification_callback(self, callback_data):
+    def icloud_verification_code_callback(self, callback_data):
         """The trusted device is chosen."""
         self._verification_code = callback_data.get('0')
         if self.accountname in _CONFIGURING:
@@ -288,7 +287,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         _CONFIGURING[self.accountname] = configurator.request_config(
             self.hass, 'iCloud {}'.format(self.accountname),
-            self.icloud_verification_callback,
+            self.icloud_verification_code_callback,
             description=('Please enter the validation code:'),
             description_image="/static/images/config_icloud.png",
             submit_caption='Confirm',
@@ -332,8 +331,13 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
             else:
                 self.api.authenticate()
 
+            currentminutes = dt_util.now().hour * 60 + dt_util.now().minute
             for devicename in self.devices:
-                self.update_device(devicename)
+                interval = self._intervals.get(devicename, 1)
+                if ((currentminutes % interval == 0) or
+                        (interval > 10 and
+                         currentminutes % interval in [2, 4])):
+                    self.update_device(devicename)
 
     def determine_interval(self, devicename, latitude, longitude, battery):
         """Calculate new interval."""
@@ -394,56 +398,51 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
                     attrs[ATTR_GMTT_DURATION] = duration
                     attrs[ATTR_GMTT_ORIGIN] = origin
 
-        currentminutes = dt_util.now().hour * 60 + dt_util.now().minute
-        interval = self._intervals.get(devicename, 1)
-        if ((currentminutes % interval == 0) or
-                (interval > 10 and currentminutes % interval in [2, 4])):
-            if self.api is not None:
-                from pyicloud.exceptions import PyiCloudNoDevicesException
-
-                try:
-                    for device in self.api.devices:
-                        if str(device) == str(self.devices[devicename]):
-                            status = device.status(DEVICESTATUSSET)
-                            dev_id = status['name'].replace(' ', '', 99)
-                            dev_id = slugify(dev_id)
-                            devicestatuscode = status['deviceStatus']
-                            if devicestatuscode == '200':
-                                attrs[ATTR_DEVICESTATUS] = 'online'
-                            elif devicestatuscode == '201':
-                                attrs[ATTR_DEVICESTATUS] = 'offline'
-                            elif devicestatuscode == '203':
-                                attrs[ATTR_DEVICESTATUS] = 'pending'
-                            elif devicestatuscode == '204':
-                                attrs[ATTR_DEVICESTATUS] = 'unregistered'
-                            else:
-                                attrs[ATTR_DEVICESTATUS] = 'error'
-                            lowpowermode = status['lowPowerMode']
-                            attrs[ATTR_LOWPOWERMODE] = lowpowermode
-                            batterystatus = status['batteryStatus']
-                            attrs[ATTR_BATTERYSTATUS] = batterystatus
-                            attrs[ATTR_ACCOUNTNAME] = self.accountname
-                            status = device.status(DEVICESTATUSSET)
-                            battery = status['batteryLevel']*100
-                            location = status['location']
-                            if location:
-                                self.determine_interval(devicename,
-                                                        location['latitude'],
-                                                        location['longitude'],
-                                                        battery)
-                                interval = self._intervals.get(devicename, 1)
-                                attrs[ATTR_INTERVAL] = interval
-                                accuracy = location['horizontalAccuracy']
-                                kwargs['dev_id'] = dev_id
-                                kwargs['host_name'] = status['name']
-                                kwargs['gps'] = (location['latitude'],
-                                                 location['longitude'])
-                                kwargs['battery'] = battery
-                                kwargs['gps_accuracy'] = accuracy
-                                kwargs[ATTR_ATTRIBUTES] = attrs
-                                self.see(**kwargs)
-                except PyiCloudNoDevicesException:
-                    _LOGGER.error('No iCloud Devices found!')
+        if self.api is not None:
+            from pyicloud.exceptions import PyiCloudNoDevicesException
+            try:
+                for device in self.api.devices:
+                    if str(device) == str(self.devices[devicename]):
+                        status = device.status(DEVICESTATUSSET)
+                        dev_id = status['name'].replace(' ', '', 99)
+                        dev_id = slugify(dev_id)
+                        devicestatuscode = status['deviceStatus']
+                        if devicestatuscode == '200':
+                            attrs[ATTR_DEVICESTATUS] = 'online'
+                        elif devicestatuscode == '201':
+                            attrs[ATTR_DEVICESTATUS] = 'offline'
+                        elif devicestatuscode == '203':
+                            attrs[ATTR_DEVICESTATUS] = 'pending'
+                        elif devicestatuscode == '204':
+                            attrs[ATTR_DEVICESTATUS] = 'unregistered'
+                        else:
+                            attrs[ATTR_DEVICESTATUS] = 'error'
+                        lowpowermode = status['lowPowerMode']
+                        attrs[ATTR_LOWPOWERMODE] = lowpowermode
+                        batterystatus = status['batteryStatus']
+                        attrs[ATTR_BATTERYSTATUS] = batterystatus
+                        attrs[ATTR_ACCOUNTNAME] = self.accountname
+                        status = device.status(DEVICESTATUSSET)
+                        battery = status['batteryLevel']*100
+                        location = status['location']
+                        if location:
+                            self.determine_interval(devicename,
+                                                    location['latitude'],
+                                                    location['longitude'],
+                                                    battery)
+                            interval = self._intervals.get(devicename, 1)
+                            attrs[ATTR_INTERVAL] = interval
+                            accuracy = location['horizontalAccuracy']
+                            kwargs['dev_id'] = dev_id
+                            kwargs['host_name'] = status['name']
+                            kwargs['gps'] = (location['latitude'],
+                                             location['longitude'])
+                            kwargs['battery'] = battery
+                            kwargs['gps_accuracy'] = accuracy
+                            kwargs[ATTR_ATTRIBUTES] = attrs
+                            self.see(**kwargs)
+            except PyiCloudNoDevicesException:
+                _LOGGER.error('No iCloud Devices found!')
 
     def lost_iphone(self, devicename):
         """Call the lost iphone function if the device is found."""
@@ -480,7 +479,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
                     devname = device
                 else:
                     devname = devicename
-                devid = 'device_tracker.' + devname
+                devid = DOMAIN + '.' + devname
                 devicestate = self.hass.states.get(devid)
                 if interval is not None:
                     if devicestate is not None:
