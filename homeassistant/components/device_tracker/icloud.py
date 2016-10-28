@@ -377,7 +377,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
         entity = hass.states.get(ENTITY_ID_FORMAT.format(devicename))
         if entity is None and devicename in self.seen_devices:
-            continue
+            return
         attrs = {}
         kwargs = {}
         gtt = self.googletraveltime.get(devicename)
