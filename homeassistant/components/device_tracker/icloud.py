@@ -147,9 +147,6 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
         """Initialize an iCloud account."""
         # pylint: disable=too-many-arguments,too-many-branches
         # pylint: disable=too-many-statements,too-many-locals
-        from pyicloud import PyiCloudService
-        from pyicloud.exceptions import PyiCloudFailedLoginException
-
         self.hass = hass
         self.username = username
         self.password = password
