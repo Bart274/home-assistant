@@ -168,21 +168,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
         self._attrs = {}
         self._attrs[ATTR_ACCOUNTNAME] = name
 
-        try:
-            self.api = PyiCloudService(
-                self.username, self.password,
-                cookie_directory=self.hass.config.get('.icloud_cookies'),
-                verify=True)
-            for device in self.api.devices:
-                status = device.status(DEVICESTATUSSET)
-                devicename = slugify(status['name'].replace(' ', '', 99))
-                if devicename not in self.devices:
-                    self.devices[devicename] = device
-                    self._intervals[devicename] = 1
-                    self._overridestates[devicename] = None
-
-        except PyiCloudFailedLoginException as error:
-            _LOGGER.error('Error logging into iCloud Service: %s', error)
+        self.reset_account_icloud()
 
         randomseconds = random.randint(10, 59)
         track_utc_time_change(
@@ -200,7 +186,6 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
                 cookie_directory=self.hass.config.get('.icloud_cookies'),
                 verify=True)
             self.devices = {}
-            self.seen_devices = {}
             self._overridestates = {}
             self._intervals = {}
             for device in self.api.devices:
