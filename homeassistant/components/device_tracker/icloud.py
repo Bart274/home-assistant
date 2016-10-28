@@ -462,7 +462,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
 
     def setinterval(self, interval=None, devicename=None):
         """Set the interval of the given devices."""
-        devs = [devicename] if devicename else self.devices:
+        devs = [devicename] if devicename else self.devices
         for device in devs:
             devid = DOMAIN + '.' + devname
             devicestate = self.hass.states.get(devid)
