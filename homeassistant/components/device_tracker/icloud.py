@@ -97,14 +97,11 @@ def setup_scanner(hass, config: dict, see):
 
     def lost_iphone(call):
         """Call the lost iphone function if the device is found."""
-        accountname = call.data.get(ATTR_ACCOUNTNAME)
+        accounts = call.data.get(ATTR_ACCOUNTNAME, ICLOUDTRACKERS)
         devicename = call.data.get(ATTR_DEVICENAME)
-        if accountname is None:
-            for account in ICLOUDTRACKERS:
+        for account in accounts:
+            if account in ICLOUDTRACKERS:
                 ICLOUDTRACKERS[account].lost_iphone(devicename)
-        elif accountname in ICLOUDTRACKERS:
-            ICLOUDTRACKERS[accountname].lost_iphone(devicename)
-
     hass.services.register(DOMAIN, 'lost_iphone', lost_iphone,
                            schema=SERVICE_SCHEMA)
 
@@ -120,7 +117,7 @@ def setup_scanner(hass, config: dict, see):
 
     def reset_account_icloud(call):
         """Reset an icloud account."""
-        accountname = call.data.get(ATTR_ACCOUNTNAME, ICLOUDTRACKERS)
+        accounts = call.data.get(ATTR_ACCOUNTNAME, ICLOUDTRACKERS)
         for account in accounts:
             if account in ICLOUDTRACKERS:
                 ICLOUDTRACKERS[account].reset_account_icloud()
@@ -129,7 +126,7 @@ def setup_scanner(hass, config: dict, see):
 
     def setinterval(call):
         """Call the update function of an icloud account."""
-        accountname = call.data.get(ATTR_ACCOUNTNAME, ICLOUDTRACKERS)
+        accounts = call.data.get(ATTR_ACCOUNTNAME, ICLOUDTRACKERS)
         interval = call.data.get(ATTR_INTERVAL)
         devicename = call.data.get(ATTR_DEVICENAME)
         for account in accounts:
@@ -375,7 +372,7 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
         # pylint: disable=too-many-nested-blocks,too-many-locals
         from pyicloud.exceptions import PyiCloudNoDevicesException
 
-        entity = hass.states.get(ENTITY_ID_FORMAT.format(devicename))
+        entity = self.hass.states.get(ENTITY_ID_FORMAT.format(devicename))
         if entity is None and devicename in self.seen_devices:
             return
         attrs = {}
@@ -464,17 +461,17 @@ class Icloud(object):  # pylint: disable=too-many-instance-attributes
         """Set the interval of the given devices."""
         devs = [devicename] if devicename else self.devices
         for device in devs:
-            devid = DOMAIN + '.' + devname
+            devid = DOMAIN + '.' + device
             devicestate = self.hass.states.get(devid)
             if interval is not None:
                 if devicestate is not None:
-                    self._overridestates[devname] = active_zone(
+                    self._overridestates[device] = active_zone(
                         self.hass,
                         float(devicestate.attributes.get('latitude', 0)),
                         float(devicestate.attributes.get('longitude', 0)))
-                    if self._overridestates[devname] is None:
-                        self._overridestates[devname] = 'away'
-                self._intervals[devname] = interval
+                    if self._overridestates[device] is None:
+                        self._overridestates[device] = 'away'
+                self._intervals[device] = interval
             else:
-                self._overridestates[devname] = None
-            self.update_device(devname)
+                self._overridestates[device] = None
+            self.update_device(device)
